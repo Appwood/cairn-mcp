@@ -1,0 +1,23 @@
+default_time_window: 24h
+max_results: 100
+
+redaction:
+  redact_emails: false
+  fields:
+    - password
+    - token
+    - api_key
+    - authorization
+
+sources:
+  example_jsonl:
+    type: jsonl
+    path: logs.jsonl
+    field_map:
+      timestamp: ts
+      level: severity
+      message: msg
+      logger: logger_name
+      request_id: req_id
+      trace_id: trace
+      job_id: job

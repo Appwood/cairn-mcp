@@ -1,0 +1,44 @@
+# Postgres example.
+#
+# Mirrors a typical application log table (here: a `log_entries` table with a
+# uuid id, a timestamptz timestamp, a JSONB `extra` column, and correlation
+# ids). The Postgres backend pushes filters, ordering, keyset pagination, and
+# the stats GROUP BY down to the database, so it scales to production log tables.
+#
+# Install the optional driver first:
+#   uv sync --extra postgres        # or: pip install 'cairn-mcp[postgres]'
+#
+# The dsn is read from an environment variable so credentials stay out of the
+# config file:
+#   export LOG_DATABASE_URL='postgresql://reader:secret@localhost:5432/app'
+
+default_time_window: 24h
+max_results: 100
+
+redaction:
+  redact_emails: false
+  # These ADD to the built-in sensitive-field defaults; they never replace them.
+  fields:
+    - session_id
+  patterns:
+    - name: internal_session
+      pattern: "session_[A-Za-z0-9]+"
+      replacement: "[SESSION]"
+
+sources:
+  app_postgres:
+    type: postgres
+    dsn: ${LOG_DATABASE_URL}
+    table: log_entries
+    # options:
+    #   schema: public        # uncomment for a non-default schema
+    field_map:
+      id: id
+      timestamp: timestamp
+      level: level
+      message: message
+      logger: logger_name
+      request_id: request_id
+      job_id: job_id
+      traceback: traceback
+      attributes: extra

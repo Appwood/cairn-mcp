@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cairn-mcp"
+version = "0.1.0"
+description = "A tiny, read-only MCP adapter for structured logs you already have."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+  { name = "Appwood" }
+]
+keywords = ["mcp", "logs", "structured-logging", "debugging", "ai-agents"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Debuggers",
+  "Topic :: System :: Logging",
+]
+dependencies = [
+  "mcp>=1.27,<2",
+  "pydantic>=2,<3",
+  "PyYAML>=6,<7",
+]
+
+[project.optional-dependencies]
+postgres = [
+  "psycopg[binary]>=3.1",
+  "psycopg-pool>=3.2",
+]
+dev = [
+  "pytest>=8,<9",
+]
+
+[project.scripts]
+cairn = "cairn_mcp.server:main"
+cairn-mcp = "cairn_mcp.server:main"
+
+# Third-party backends register here; the adapter discovers them at startup.
+# Example for an out-of-tree package:
+#   [project.entry-points."cairn_mcp.backends"]
+#   loki = "my_package.loki_backend:LokiBackend"
+
+[project.urls]
+Homepage = "https://github.com/Appwood/cairn-mcp"
+Issues = "https://github.com/Appwood/cairn-mcp/issues"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "integration: tests that require external services",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cairn_mcp"]

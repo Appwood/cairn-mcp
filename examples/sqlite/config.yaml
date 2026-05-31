@@ -1,0 +1,13 @@
+default_time_window: 24h
+max_results: 100
+
+sources:
+  example_sqlite:
+    type: sqlite
+    path: app_logs.db
+    table: logs
+    field_map:
+      timestamp: created_at
+      level: severity
+      message: body
+      logger: logger_name
