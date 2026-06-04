@@ -11,6 +11,8 @@ updates:
     groups:
       # One PR per week for non-major bumps keeps the noise down.
       python-minor-patch:
+        patterns:
+          - "*"
         update-types:
           - "minor"
           - "patch"
