@@ -1,0 +1,59 @@
+name: Bug report
+description: Cairn behaves incorrectly — wrong results, a crash, or a redaction / read-only concern.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report.
+
+        ⚠️ **Security issues** (redaction bypasses, read-only escapes, SQL/identifier
+        injection, path traversal) should **not** be filed here — report them privately
+        via the [security policy](https://github.com/Appwood/cairn-mcp/security/policy).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you get instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Backend
+      options:
+        - jsonl
+        - sqlite
+        - postgres
+        - multiple / other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `cairn-mcp --version`.
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: e.g. 3.12
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal config + log shape to reproduce
+      description: A minimal `config.yaml` and a sample log row/shape. Remove any real secrets.
+      render: yaml
+    validations:
+      required: true
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have removed or redacted any real secrets from this report.
+          required: true
+        - label: This is not a security vulnerability (those go through the security policy).
+          required: true

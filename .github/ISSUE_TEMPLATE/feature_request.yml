@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an improvement that fits Cairn's scope.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cairn is a **read-only adapter**, not a log platform. Out of scope: ingestion
+        pipelines, an observability UI, a raw-SQL tool, and any write operation.
+        Ideas within that boundary — new log shapes, safer redaction, better
+        push-down, a new backend — are very welcome.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and where does Cairn fall short today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like Cairn to do?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This keeps Cairn read-only and within its adapter scope (no ingestion, UI, raw SQL, or writes).
+          required: true

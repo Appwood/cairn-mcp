@@ -1,0 +1,7 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Appwood/cairn-mcp/security/advisories/new
+    about: >-
+      Redaction bypasses, read-only escapes, or injection — report privately via
+      the security advisory form, not as a public issue.
