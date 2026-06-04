@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from importlib import metadata
 from typing import TYPE_CHECKING
 
@@ -8,6 +9,8 @@ from cairn_mcp.config import ConfigError
 if TYPE_CHECKING:
     from cairn_mcp.backends.base import LogBackend
 
+
+logger = logging.getLogger(__name__)
 
 ENTRY_POINT_GROUP = "cairn_mcp.backends"
 
@@ -25,6 +28,19 @@ def register_backend(backend_cls: type["LogBackend"]) -> type["LogBackend"]:
     type_name = (backend_cls.type_name or "").strip().lower()
     if not type_name:
         raise ValueError(f"{backend_cls.__name__} must define a non-empty type_name")
+    existing = _REGISTRY.get(type_name)
+    if existing is not None and existing is not backend_cls:
+        # A different class claims a name that is already taken — most likely a
+        # third-party plugin shadowing a built-in. Keep the first registration
+        # and surface the conflict instead of silently rerouting a source type
+        # (which could defeat the read-only built-in backends).
+        logger.warning(
+            "ignoring backend %r for type %r: already registered to %r",
+            backend_cls.__name__,
+            type_name,
+            existing.__name__,
+        )
+        return backend_cls
     _REGISTRY[type_name] = backend_cls
     return backend_cls
 
@@ -38,13 +54,20 @@ def _load_entry_point_backends() -> list[str]:
     try:
         entry_points = metadata.entry_points(group=ENTRY_POINT_GROUP)
     except Exception as exc:  # noqa: BLE001 - discovery must never break startup
-        return [f"backend entry-point discovery failed: {exc}"]
+        message = f"backend entry-point discovery failed: {exc}"
+        logger.warning(message)
+        return [message]
     for entry_point in entry_points:
         try:
             backend_cls = entry_point.load()
             register_backend(backend_cls)
         except Exception as exc:  # noqa: BLE001 - one bad plugin shouldn't kill others
-            warnings.append(f"failed to load backend plugin {entry_point.name!r}: {exc}")
+            # Surface the failure (logging goes to stderr, never the stdio MCP
+            # channel) so a broken plugin degrades to a diagnosable "unknown
+            # source type" instead of vanishing silently.
+            message = f"failed to load backend plugin {entry_point.name!r}: {exc}"
+            logger.warning(message)
+            warnings.append(message)
     return warnings
 
 

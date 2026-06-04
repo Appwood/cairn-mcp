@@ -1,3 +1,11 @@
+# Demo configuration for the JSONL backend.
+#
+# NOTE: the companion logs.jsonl deliberately embeds FAKE, secret-looking values
+# (a token, an api_key, a bearer token) so the example demonstrates redaction.
+# They are not real credentials, and are chosen not to match real secret-scanner
+# provider patterns (no real Stripe/AWS/GitHub key prefixes), so publishing never
+# trips GitHub push protection.
+
 default_time_window: 24h
 max_results: 100
 

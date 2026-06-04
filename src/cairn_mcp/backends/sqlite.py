@@ -39,13 +39,27 @@ def build_select(
     filters: SearchFilters,
     *,
     scan_limit: int,
+    order: SortOrder = SortOrder.DESC,
 ) -> tuple[str, list[object]]:
     """Build a parameterized SELECT that pushes equality filters to SQLite.
 
     Time ordering and the keyset cursor are applied in Python afterwards because
     the mapped timestamp column's storage format is unknown, so only the
-    selective equality predicates (ids, service, logger) are pushed here. One
-    extra row over ``scan_limit`` is fetched so the caller can warn on overflow.
+    selective equality predicates (ids, service, logger) are pushed here. The
+    rows are ordered by ``rowid`` in the query direction *before* the
+    ``scan_limit`` cut, so an oversized table keeps the newest rows (DESC) or the
+    earliest rows (ASC) the caller actually asked for — not an arbitrary
+    rowid-ascending prefix that, for a newest-first search, returned the *oldest*
+    rows. One extra row over ``scan_limit`` is fetched so the caller can warn on
+    overflow.
+
+    Caveat: ``rowid`` is a proxy for insertion order, which equals time order
+    only for append-only logs. If rows are inserted out of chronological order, a
+    newest-first search whose result hits ``scan_limit`` can miss a row whose
+    timestamp is newer but whose ``rowid`` is lower — the overflow warning flags
+    that the window was incomplete. Raise ``scan_limit`` (or use the Postgres
+    backend, which orders by the timestamp column itself) for out-of-order data
+    at scale.
     """
     where: list[str] = []
     params: list[object] = []
@@ -56,7 +70,11 @@ def build_select(
             where.append(f'"{column}" = ?')
             params.append(value)
     clause = f" WHERE {' AND '.join(where)}" if where else ""
-    sql = f'SELECT rowid AS "__rowid__", * FROM "{table}"{clause} LIMIT ?'
+    direction = "DESC" if order == SortOrder.DESC else "ASC"
+    sql = (
+        f'SELECT rowid AS "__rowid__", * FROM "{table}"{clause} '
+        f"ORDER BY rowid {direction} LIMIT ?"
+    )
     params.append(scan_limit + 1)
     return sql, params
 
@@ -81,7 +99,7 @@ class SQLiteBackend(LogBackend):
     def fetch(self, query: LogQuery) -> BackendResult:
         result = BackendResult()
         matched: list[LogEntry] = []
-        for entry in self._entries(query.filters, result):
+        for entry in self._entries(query.filters, result, query.order):
             if not entry_matches(entry, query.filters, include_text=False):
                 continue
             if query.cursor and not cursor_after(entry, query.cursor, query.order):
@@ -117,9 +135,12 @@ class SQLiteBackend(LogBackend):
         return aggregates
 
     def _entries(
-        self, filters: SearchFilters, result: BackendResult
+        self,
+        filters: SearchFilters,
+        result: BackendResult,
+        order: SortOrder = SortOrder.DESC,
     ) -> Iterator[LogEntry]:
-        for rowid, row in self._rows(filters, result):
+        for rowid, row in self._rows(filters, result, order):
             fallback_id = f"{self.name}:{rowid}" if rowid is not None else self.name
             try:
                 yield normalize_record(
@@ -135,7 +156,10 @@ class SQLiteBackend(LogBackend):
                 )
 
     def _rows(
-        self, filters: SearchFilters, result: BackendResult
+        self,
+        filters: SearchFilters,
+        result: BackendResult,
+        order: SortOrder = SortOrder.DESC,
     ) -> Iterator[tuple[object, dict[str, object]]]:
         try:
             sql, params = build_select(
@@ -143,6 +167,7 @@ class SQLiteBackend(LogBackend):
                 self.config.field_map,
                 filters,
                 scan_limit=self._scan_limit,
+                order=order,
             )
         except ValueError as exc:
             result.warnings.append(f"{self.name}: {exc}")

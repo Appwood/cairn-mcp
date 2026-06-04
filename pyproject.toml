@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
@@ -9,6 +9,7 @@ description = "A tiny, read-only MCP adapter for structured logs you already hav
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [
   { name = "Appwood" }
 ]
@@ -16,10 +17,10 @@ keywords = ["mcp", "logs", "structured-logging", "debugging", "ai-agents"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Software Development :: Debuggers",
   "Topic :: System :: Logging",
 ]
@@ -49,7 +50,10 @@ cairn-mcp = "cairn_mcp.server:main"
 
 [project.urls]
 Homepage = "https://github.com/Appwood/cairn-mcp"
+Documentation = "https://github.com/Appwood/cairn-mcp#readme"
+Source = "https://github.com/Appwood/cairn-mcp"
 Issues = "https://github.com/Appwood/cairn-mcp/issues"
+Changelog = "https://github.com/Appwood/cairn-mcp/blob/main/CHANGELOG.md"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -60,3 +64,15 @@ markers = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cairn_mcp"]
+
+[tool.hatch.build.targets.sdist]
+# Keep the published source distribution lean and free of local/dev cruft.
+# (.idea/, .venv/, .pytest_cache/ are already excluded via .gitignore; .claude/
+# is too, but is listed here as well as a belt-and-suspenders guard so a local
+# Claude Code settings file can never leak into a published artifact.)
+exclude = [
+  "/branding",
+  "/uv.lock",
+  "/.github",
+  "/.claude",
+]

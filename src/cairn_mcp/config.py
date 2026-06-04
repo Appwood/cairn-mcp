@@ -176,17 +176,24 @@ def parse_duration(value: str) -> timedelta:
         )
     amount = int(match.group(1))
     unit = match.group(2)
-    match unit:
-        case "s":
-            return timedelta(seconds=amount)
-        case "m":
-            return timedelta(minutes=amount)
-        case "h":
-            return timedelta(hours=amount)
-        case "d":
-            return timedelta(days=amount)
-        case "w":
-            return timedelta(weeks=amount)
+    if amount <= 0:
+        raise ConfigError("duration must be a positive amount; for example 24h")
+    try:
+        match unit:
+            case "s":
+                return timedelta(seconds=amount)
+            case "m":
+                return timedelta(minutes=amount)
+            case "h":
+                return timedelta(hours=amount)
+            case "d":
+                return timedelta(days=amount)
+            case "w":
+                return timedelta(weeks=amount)
+    except OverflowError:
+        # A huge amount (e.g. "9999999999999999999w") overflows timedelta's C
+        # ints; surface it as a clean load-time ConfigError, not a raw crash.
+        raise ConfigError(f"duration {value!r} is too large") from None
     raise ConfigError(f"unsupported duration unit: {unit}")
 
 
@@ -206,7 +213,15 @@ def _expand_source_env(data: Any) -> Any:
         for key in ("path", "dsn"):
             value = source.get(key)
             if isinstance(value, str):
-                source[key] = os.path.expandvars(value)
+                expanded = os.path.expandvars(value)
+                # os.path.expandvars leaves an undefined ${VAR} literally, which
+                # would otherwise resolve to a nonsensical path/dsn and fail with
+                # a confusing "cannot open" only at query time. Fail clearly now.
+                if "${" in expanded:
+                    raise ConfigError(
+                        f"unresolved environment variable in source {key}: {value!r}"
+                    )
+                source[key] = expanded
     return data
 
 

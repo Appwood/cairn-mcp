@@ -19,6 +19,14 @@ from cairn_mcp.schema import (
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+# Cap the rows pulled for the high-cardinality stats dimensions (service,
+# logger). Without a bound a table with millions of distinct values would stream
+# one GROUP BY row per value into memory; with it we keep the top-N by count —
+# what a stats overview wants — and warn when the cut bites. The bounded-
+# cardinality dimensions (level, time bucket) are never capped.
+MAX_STATS_GROUPS = 100
+_CAPPED_DIMENSIONS = ("by_service", "by_logger")
+
 
 def _ident(name: str, *, what: str = "identifier") -> str:
     if not _IDENTIFIER_RE.fullmatch(name):
@@ -135,12 +143,20 @@ def build_aggregate_sql(
     table_ref = _qualified_table(table, schema)
     ts_col = _column(field_map, "timestamp")
 
-    def group(expr: str) -> tuple[str, list[Any]]:
+    def group(expr: str, *, capped: bool = False) -> tuple[str, list[Any]]:
         sql = (
             f"SELECT {expr} AS bucket, count(*) AS n "
             f"FROM {table_ref}{where} GROUP BY bucket"
         )
-        return sql, list(base_params)
+        params = list(base_params)
+        if capped:
+            # top-N by count, bounded so an unbounded-cardinality column can't
+            # pull a row per distinct value into memory. Fetch one extra row as
+            # an overflow sentinel so the caller can tell "exactly N groups"
+            # (complete) apart from "more than N" (truncated).
+            sql += " ORDER BY n DESC LIMIT %s"
+            params.append(MAX_STATS_GROUPS + 1)
+        return sql, params
 
     def has_column(field: str) -> bool:
         if not available_columns:
@@ -163,9 +179,13 @@ def build_aggregate_sql(
         ),
     }
     if has_column("service"):
-        queries["by_service"] = group(f"{_column(field_map, 'service')}::text")
+        queries["by_service"] = group(
+            f"{_column(field_map, 'service')}::text", capped=True
+        )
     if has_column("logger"):
-        queries["by_logger"] = group(f"{_column(field_map, 'logger')}::text")
+        queries["by_logger"] = group(
+            f"{_column(field_map, 'logger')}::text", capped=True
+        )
     return queries
 
 
@@ -284,7 +304,16 @@ class PostgresBackend(LogBackend):
         }
         for key, (sql, params) in queries.items():
             counter = dimension_targets[key]
-            for row in self._execute(sql, params, _Warns(aggregates)):
+            rows = self._execute(sql, params, _Warns(aggregates))
+            if key in _CAPPED_DIMENSIONS and len(rows) > MAX_STATS_GROUPS:
+                # more than the cap exists (the query fetched cap+1): drop the
+                # overflow sentinel and warn. Exactly-cap groups return cap rows
+                # and are complete — no false warning.
+                rows = rows[:MAX_STATS_GROUPS]
+                aggregates.warnings.append(
+                    f"{self.name}: {key} truncated to top {MAX_STATS_GROUPS} by count"
+                )
+            for row in rows:
                 bucket = row["bucket"]
                 counter[str(bucket) if bucket is not None else "unknown"] += int(row["n"])
         # A dimension whose column the table lacks still applies to every row —

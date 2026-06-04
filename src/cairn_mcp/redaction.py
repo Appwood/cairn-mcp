@@ -22,6 +22,7 @@ _SINGLE_WORD_MARKERS = frozenset(
         "password",
         "passwd",
         "pwd",
+        "passphrase",
         "secret",
         "token",
         "authorization",
@@ -51,7 +52,8 @@ _COMPOUND_MARKERS = (
 _SECRET_KEY = (
     r"access[_-]?token|refresh[_-]?token|session[_-]?token|bearer[_-]?token|"
     r"client[_-]?secret|api[_-]?secret|secret[_-]?key|private[_-]?key|"
-    r"auth[_-]?token|api[_-]?key|apikey|password|passwd|pwd|secret|token"
+    r"auth[_-]?token|api[_-]?key|apikey|passphrase|credentials|credential|"
+    r"password|passwd|pwd|secret|session|cookie|token|jwt"
 )
 
 _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
@@ -94,12 +96,33 @@ class Redactor:
                 ),
                 f"Authorization: {DEFAULT_REDACTION}",
             ),
+            # key=value / key: value. The value class is quote-aware: a quoted
+            # value is consumed whole (including spaces) so a multi-word secret
+            # can't leak its tail; an unquoted value stops at the first
+            # separator/whitespace as before.
             (
                 re.compile(
-                    rf"\b({_SECRET_KEY})\s*[:=]\s*['\"]?[^'\"\s,;}}]+",
+                    rf"\b({_SECRET_KEY})\s*[:=]\s*"
+                    rf"(?:\"[^\"]*\"|'[^']*'|[^'\"\s,;}}]+)",
                     re.IGNORECASE,
                 ),
                 rf"\1={DEFAULT_REDACTION}",
+            ),
+            # URL-embedded credentials: scheme://user:password@host (and the
+            # password-only scheme://:password@host form). The password class
+            # excludes / ? # so the match stays inside the URL authority and
+            # cannot run across the path/query to a later '@' (e.g. an email in a
+            # query string would otherwise mangle a normal ported URL). Mask the
+            # password, keep the scheme/user/host shape for debugging.
+            (
+                re.compile(r"\b([a-zA-Z][a-zA-Z0-9+.-]*://[^\s:/@]*):[^\s/?#@]+@"),
+                rf"\1:{DEFAULT_REDACTION}@",
+            ),
+            # Bare JSON Web Tokens (header.payload.signature). The "eyJ" prefix is
+            # base64url("{\"") so this is specific enough to avoid false hits.
+            (
+                re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*"),
+                DEFAULT_REDACTION,
             ),
         ]
         if self.config.redact_emails:
