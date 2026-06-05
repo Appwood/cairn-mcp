@@ -55,6 +55,13 @@ Source = "https://github.com/Appwood/cairn-mcp"
 Issues = "https://github.com/Appwood/cairn-mcp/issues"
 Changelog = "https://github.com/Appwood/cairn-mcp/blob/main/CHANGELOG.md"
 
+[tool.uv]
+# Supply-chain hardening: ignore PyPI releases newer than a rolling 7-day window
+# when resolving, so a compromised release has time to be detected and yanked
+# before it can enter the lock. Mirrors the Dependabot cooldown in
+# .github/dependabot.yml; overrides any (shorter) user-level uv default.
+exclude-newer = "-P7D"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
