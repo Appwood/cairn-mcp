@@ -5,6 +5,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Supply-chain hardening: wait before opening PRs for brand-new releases so a
+    # compromised version has time to be detected and yanked. Security updates are
+    # exempt and still come through immediately.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     commit-message:
       prefix: "deps"
@@ -22,6 +27,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Supply-chain hardening (same rationale as above); also guards against a
+    # compromised third-party action, e.g. the tj-actions/changed-files incident.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     commit-message:
       prefix: "ci"
